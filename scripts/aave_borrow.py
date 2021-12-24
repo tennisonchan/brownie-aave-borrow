@@ -7,10 +7,20 @@ AMOUNT = Web3.toWei(0.1, "ether")
 
 
 def aave_borrow():
-    account = get_account
+    print(f"In network {network.show_active()}")
+    account = get_account()
     weth_address = config["networks"][network.show_active()]["weth_token"]
     if is_forked_local(network.show_active()):
         deposit_weth()
+    # Get Lending Pool
+    lending_pool = get_lending_pool()
+    # Approve ERC20 tokens
+    approve_erc20(weth_address, lending_pool.address, AMOUNT, account)
+    print(lending_pool)
+    # Deposit to lending pool
+    deposit_lending_pool(lending_pool, weth_address, AMOUNT, account)
+    # Get borrowable data
+    borrowable_eth, total_debt = get_borrowable_data(lending_pool, account)
 
 
 def get_lending_pool():
@@ -65,18 +75,20 @@ def get_borrowable_data(lending_pool, account):
     return (float(available_borrows_eth), float(total_debt_eth))
 
 
+def get_asset_price_feed():
+    dai_eth_price_feed_address = config["networks"][network.show_active()][
+        "dai_eth_price_feed"
+    ]
+    price_feed = interface.AggregatorV3Interface(dai_eth_price_feed_address)
+    (
+        roundId,
+        answer,
+        startedAt,
+        updatedAt,
+        answeredInRound,
+    ) = price_feed.latestRoundData()
+    print(f"Dai / Eth price feed {answer}")
+
+
 def main():
-    print(f"In network {network.show_active()}")
-    account = get_account()
-    weth_address = config["networks"][network.show_active()]["weth_token"]
-    if is_forked_local(network.show_active()):
-        deposit_weth()
-    # Get Lending Pool
-    lending_pool = get_lending_pool()
-    # Approve ERC20 tokens
-    approve_erc20(weth_address, lending_pool.address, AMOUNT, account)
-    print(lending_pool)
-    # Deposit to lending pool
-    deposit_lending_pool(lending_pool, weth_address, AMOUNT, account)
-    # Get borrowable data
-    borrowable_eth, total_debt = get_borrowable_data(lending_pool, account)
+    aave_borrow()
