@@ -45,15 +45,38 @@ def deposit_lending_pool(lending_pool, address, amount, account):
     return tx
 
 
+def get_borrowable_data(lending_pool, account):
+    # https://docs.aave.com/developers/the-core-protocol/lendingpool#getuseraccountdata
+    (
+        total_collateral_eth_wei,
+        total_debt_eth_wei,
+        available_borrows_eth_wei,
+        current_liquidation_threshold,
+        ltv,
+        health_factor,
+    ) = lending_pool.getUserAccountData(account.address)
+    total_collateral_eth = Web3.fromWei(total_collateral_eth_wei, "ether")
+    total_debt_eth = Web3.fromWei(total_debt_eth_wei, "ether")
+    available_borrows_eth = Web3.fromWei(available_borrows_eth_wei, "ether")
+
+    print(f"You have {total_collateral_eth} worth of ETH to deposited.")
+    print(f"You have {total_debt_eth} worth of ETH borrowed")
+    print(f"You can borrow {available_borrows_eth} worth of ETH")
+    return (float(available_borrows_eth), float(total_debt_eth))
+
+
 def main():
     print(f"In network {network.show_active()}")
     account = get_account()
     weth_address = config["networks"][network.show_active()]["weth_token"]
     if is_forked_local(network.show_active()):
         deposit_weth()
+    # Get Lending Pool
     lending_pool = get_lending_pool()
     # Approve ERC20 tokens
     approve_erc20(weth_address, lending_pool.address, AMOUNT, account)
     print(lending_pool)
     # Deposit to lending pool
     deposit_lending_pool(lending_pool, weth_address, AMOUNT, account)
+    # Get borrowable data
+    borrowable_eth, total_debt = get_borrowable_data(lending_pool, account)
