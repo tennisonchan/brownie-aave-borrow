@@ -14,13 +14,47 @@ def aave_borrow():
         deposit_weth()
     # Get Lending Pool
     lending_pool = get_lending_pool()
-    # Approve ERC20 tokens
-    approve_erc20(weth_address, lending_pool.address, AMOUNT, account)
     print(lending_pool)
     # Deposit to lending pool
     deposit_lending_pool(lending_pool, weth_address, AMOUNT, account)
     # Get borrowable data
-    borrowable_eth, total_debt = get_borrowable_data(lending_pool, account)
+    borrowable_eth, _ = get_borrowable_data(lending_pool, account)
+
+    dai_eth_price = get_asset_price_feed(
+        config["networks"][network.show_active()]["dai_eth_price_feed"]
+    )
+
+    # borrowable dai => 1/dai-eth * borrowable eth * 95%
+    amount_dai_to_borrow = (1 / dai_eth_price) * borrowable_eth * 0.95
+    print(amount_dai_to_borrow)
+    dai_address = config["networks"][network.show_active()]["dai_token"]
+
+    borrow_from_lending_pool(
+        lending_pool,
+        dai_address,
+        Web3.toWei(amount_dai_to_borrow, "ether"),
+        "stable",
+        account,
+    )
+
+
+def get_rate_mode_code(rate_mode):
+    return 1 if rate_mode == "stable" else 2
+
+
+def borrow_from_lending_pool(
+    lending_pool, asset, amount_wei, rateMode, account, referralCode=0
+):
+    # https://docs.aave.com/developers/the-core-protocol/lendingpool#borrow
+    borrow_tx = lending_pool.borrow(
+        asset,
+        amount_wei,
+        get_rate_mode_code(rateMode),
+        referralCode,
+        account.address,
+        {"from": account},
+    )
+    borrow_tx.wait(1)
 
 
 def get_lending_pool():
@@ -48,6 +82,8 @@ def approve_erc20(erc20_address, sender, amount, account):
 
 
 def deposit_lending_pool(lending_pool, address, amount, account):
+    # Approve ERC20 tokens
+    approve_erc20(address, lending_pool.address, amount, account)
     print("Depositing ...")
     tx = lending_pool.deposit(address, amount, account, 0, {"from": account})
     tx.wait(1)
@@ -75,19 +111,12 @@ def get_borrowable_data(lending_pool, account):
     return (float(available_borrows_eth), float(total_debt_eth))
 
 
-def get_asset_price_feed():
-    dai_eth_price_feed_address = config["networks"][network.show_active()][
-        "dai_eth_price_feed"
-    ]
-    price_feed = interface.AggregatorV3Interface(dai_eth_price_feed_address)
-    (
-        roundId,
-        answer,
-        startedAt,
-        updatedAt,
-        answeredInRound,
-    ) = price_feed.latestRoundData()
-    print(f"Dai / Eth price feed {answer}")
+def get_asset_price_feed(price_feed_address):
+    price_feed = interface.AggregatorV3Interface(price_feed_address)
+    latest_price = price_feed.latestRoundData()[1]
+    latest_price_from_wei = Web3.fromWei(latest_price, "ether")
+    print(f"The latest Dai / Eth is {latest_price_from_wei}")
+    return float(latest_price_from_wei)
 
 
 def main():
