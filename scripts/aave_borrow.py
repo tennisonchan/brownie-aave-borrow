@@ -37,6 +37,42 @@ def aave_borrow():
         account,
     )
 
+    # Repay all the debt
+    _, total_debt_eth = get_borrowable_data(lending_pool, account)
+    dai_eth_price = get_asset_price_feed(
+        config["networks"][network.show_active()]["dai_eth_price_feed"]
+    )
+    total_debt_dai = (1 / dai_eth_price) * total_debt_eth
+
+    print(f"total_debt in Dai: {total_debt_dai}")
+    repay_lending_pool(
+        lending_pool,
+        dai_address,
+        Web3.toWei(total_debt_dai, "ether"),
+        "stable",
+        account,
+    )
+    get_borrowable_data(lending_pool, account)
+
+
+def repay_lending_pool(lending_pool, asset, amount_wei, rateMode, account):
+    # Approve ERC20 tokens
+    approve_erc20(asset, lending_pool.address, amount_wei, account)
+    print(f"Repaying amount in wei {amount_wei}...")
+
+    # TODO: this does not cover all the debt
+    # we need to swap for a bit more Dai to cover the interest
+    tx = lending_pool.repay(
+        asset,
+        amount_wei,
+        get_rate_mode_code(rateMode),
+        account.address,
+        {"from": account},
+    )
+    tx.wait(1)
+    print("Repaid!")
+    return tx
+
 
 def get_rate_mode_code(rate_mode):
     return 1 if rate_mode == "stable" else 2
